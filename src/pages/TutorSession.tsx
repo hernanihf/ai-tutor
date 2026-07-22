@@ -173,7 +173,7 @@ export default function TutorSession() {
         </button>
       )}
       <main ref={mainRef} className="h-full overflow-y-auto px-4 py-6">
-        <div className="mx-auto flex max-w-2xl lg:max-w-4xl xl:max-w-5xl flex-col gap-4">
+        <div className="mx-auto flex max-w-2xl lg:max-w-3xl flex-col gap-4">
           {!initialized ? (
             <div className="flex justify-center pt-8">
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -194,7 +194,7 @@ export default function TutorSession() {
 
       <footer className="shrink-0 border-t border-border bg-background/80 px-4 py-4 backdrop-blur-sm">
         <form onSubmit={(e: FormEvent) => { e.preventDefault(); void submit() }}
-          className="mx-auto flex max-w-2xl lg:max-w-4xl xl:max-w-5xl items-end gap-2">
+          className="mx-auto flex max-w-2xl lg:max-w-3xl items-end gap-2">
           <textarea
             ref={textareaRef} rows={1} value={input}
             onChange={(e) => setInput(e.target.value)}
