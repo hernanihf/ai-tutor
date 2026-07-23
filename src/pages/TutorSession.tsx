@@ -104,7 +104,7 @@ export default function TutorSession() {
     }
     el.addEventListener('scroll', onScroll)
     return () => el.removeEventListener('scroll', onScroll)
-  }, [])
+  }, [topic])
 
   function resizeTextarea() {
     const el = textareaRef.current
