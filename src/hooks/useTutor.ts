@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { GoogleGenAI } from '@google/genai'
+import { streamMessage } from '@/lib/aiClient'
 import { supabase } from '@/lib/supabase'
 
 export interface Message {
@@ -79,12 +79,6 @@ export function useTutor(sessionId: string, topic: string) {
     async (userText: string) => {
       if (!userText.trim() || isLoading) return
 
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined
-      if (!apiKey) {
-        setError('Falta la variable de entorno VITE_GEMINI_API_KEY.')
-        return
-      }
-
       const userMessage: Message = {
         id: crypto.randomUUID(),
         role: 'user',
@@ -107,32 +101,18 @@ export function useTutor(sessionId: string, topic: string) {
       setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }])
 
       try {
-        const client = new GoogleGenAI({ apiKey })
-
-        const history = [...messages, userMessage]
-        const systemPrompt = buildSystemPrompt(topic)
-
-        const geminiHistory = history.slice(0, -1).map((m) => ({
-          role: m.role === 'user' ? 'user' : 'model',
-          parts: [{ text: m.content }],
-        }))
-
-        const chat = client.chats.create({
-          model: 'gemini-2.0-flash',
-          config: { systemInstruction: systemPrompt },
-          history: geminiHistory,
-        })
-
-        const stream = await chat.sendMessageStream({ message: userMessage.content })
-
         let fullContent = ''
-        for await (const chunk of stream) {
-          const text = chunk.text ?? ''
-          fullContent += text
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, content: fullContent } : m)),
-          )
-        }
+        await streamMessage({
+          systemPrompt: buildSystemPrompt(topic),
+          history: messages.map((m) => ({ role: m.role, content: m.content })),
+          userMessage: userMessage.content,
+          onChunk: (text) => {
+            fullContent += text
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, content: fullContent } : m)),
+            )
+          },
+        })
 
         // Save completed assistant message to Supabase
         await supabase.from('messages').insert({
