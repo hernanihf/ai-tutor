@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import Anthropic from '@anthropic-ai/sdk'
+import { GoogleGenAI } from '@google/genai'
 import { supabase } from '@/lib/supabase'
 
 export interface Message {
@@ -79,9 +79,9 @@ export function useTutor(sessionId: string, topic: string) {
     async (userText: string) => {
       if (!userText.trim() || isLoading) return
 
-      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined
       if (!apiKey) {
-        setError('Falta la variable de entorno VITE_ANTHROPIC_API_KEY.')
+        setError('Falta la variable de entorno VITE_GEMINI_API_KEY.')
         return
       }
 
@@ -107,28 +107,31 @@ export function useTutor(sessionId: string, topic: string) {
       setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }])
 
       try {
-        const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
+        const client = new GoogleGenAI({ apiKey })
 
-        const apiMessages = [...messages, userMessage].map((m) => ({
-          role: m.role,
-          content: m.content,
+        const history = [...messages, userMessage]
+        const systemPrompt = buildSystemPrompt(topic)
+
+        const geminiHistory = history.slice(0, -1).map((m) => ({
+          role: m.role === 'user' ? 'user' : 'model',
+          parts: [{ text: m.content }],
         }))
 
-        const stream = client.messages.stream({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1024,
-          system: buildSystemPrompt(topic),
-          messages: apiMessages,
+        const chat = client.chats.create({
+          model: 'gemini-2.0-flash',
+          config: { systemInstruction: systemPrompt },
+          history: geminiHistory,
         })
+
+        const stream = await chat.sendMessageStream({ message: userMessage.content })
 
         let fullContent = ''
         for await (const chunk of stream) {
-          if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-            fullContent += chunk.delta.text
-            setMessages((prev) =>
-              prev.map((m) => (m.id === assistantId ? { ...m, content: fullContent } : m)),
-            )
-          }
+          const text = chunk.text ?? ''
+          fullContent += text
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content: fullContent } : m)),
+          )
         }
 
         // Save completed assistant message to Supabase
