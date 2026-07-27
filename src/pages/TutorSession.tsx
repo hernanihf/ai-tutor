@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useParams, useNavigate } from 'react-router'
-import { ArrowLeft, Send, Moon, Sun, Bot, User, AlertCircle, Loader2, Download, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Send, Moon, Sun, Bot, User, AlertCircle, Loader2, Download, ChevronDown, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/hooks/useTheme'
 import { useTutor, type Message } from '@/hooks/useTutor'
@@ -20,12 +20,19 @@ function ThemeToggle() {
   )
 }
 
-function MessageBubble({ message, avatarUrl }: { message: Message; avatarUrl?: string }) {
+function highlight(text: string, query: string): string {
+  if (!query) return text
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark style="background:#fde68a;color:#0f172a;border-radius:2px;padding:0 1px">$1</mark>')
+}
+
+function MessageBubble({ message, avatarUrl, searchQuery }: { message: Message; avatarUrl?: string; searchQuery?: string }) {
   const isUser = message.role === 'user'
-  const html = message.content
+  const safe = message.content
     .replace(/&/g, '&amp;').replace(/</g, '&lt;')
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br />')
+  const html = searchQuery ? highlight(safe, searchQuery) : safe
 
   return (
     <div className={cn('flex items-start gap-3', isUser && 'flex-row-reverse')}>
@@ -87,6 +94,13 @@ export default function TutorSession() {
   const { messages, isLoading, error, sendMessage, initialized } = useTutor(id, topic)
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (showSearch) searchRef.current?.focus()
+  }, [showSearch])
   const bottomRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -152,6 +166,16 @@ export default function TutorSession() {
           type="button"
           variant="ghost"
           size="icon"
+          onClick={() => { setShowSearch((v) => !v); setSearchQuery('') }}
+          aria-label="Buscar en la conversación"
+          disabled={messages.length === 0}
+        >
+          <Search />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
           onClick={() => exportConversation(topic, messages)}
           aria-label="Descargar conversación como PDF"
           disabled={messages.length === 0}
@@ -160,6 +184,28 @@ export default function TutorSession() {
         </Button>
         <ThemeToggle />
       </header>
+
+      {showSearch && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background px-4 py-2">
+          <Search className="size-4 shrink-0 text-muted-foreground" />
+          <input
+            ref={searchRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Buscar en la conversación..."
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+          />
+          {searchQuery && (
+            <span className="text-xs text-muted-foreground">
+              {messages.filter((m) => m.content.toLowerCase().includes(searchQuery.toLowerCase())).length} resultados
+            </span>
+          )}
+          <Button type="button" variant="ghost" size="icon-xs" onClick={() => { setShowSearch(false); setSearchQuery('') }}>
+            <X />
+          </Button>
+        </div>
+      )}
 
       <div className="relative flex-1 overflow-hidden">
       {showScrollBtn && (
@@ -179,7 +225,9 @@ export default function TutorSession() {
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            messages.map((msg) => <MessageBubble key={msg.id} message={msg} avatarUrl={avatarUrl} />)
+            messages
+              .filter((msg) => !searchQuery || msg.content.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((msg) => <MessageBubble key={msg.id} message={msg} avatarUrl={avatarUrl} searchQuery={searchQuery} />)
           )}
           {isLoading && !isStreaming && <TypingIndicator />}
           {error && (

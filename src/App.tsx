@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { useNavigate } from 'react-router'
-import { Moon, Sun, MessageSquare, Trash2, Clock, LogOut, Loader2 } from 'lucide-react'
+import { Moon, Sun, MessageSquare, Trash2, Clock, LogOut, Loader2, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/hooks/useTheme'
 import { useAuth } from '@/hooks/useAuth'
@@ -81,6 +81,7 @@ function Home() {
   const [topic, setTopic] = useState('')
   const [sessions, setSessions] = useState<Session[]>([])
   const [loadingSessions, setLoadingSessions] = useState(true)
+  const [search, setSearch] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -170,16 +171,33 @@ function Home() {
           </div>
         ) : sessions.length > 0 ? (
           <section className="mt-10">
-            <h2 className="mb-3 text-sm font-medium text-muted-foreground">Sesiones anteriores</h2>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-sm font-medium text-muted-foreground">Sesiones anteriores</h2>
+            </div>
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar sesiones..."
+                className="w-full rounded-xl border border-input bg-background py-2.5 pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none focus:ring-[3px] focus:ring-ring/50"
+              />
+            </div>
             <div className="flex flex-col gap-2">
-              {sessions.map((s) => (
-                <SessionCard
-                  key={s.id}
-                  session={s}
-                  onOpen={() => void navigate(`/session/${s.id}`)}
-                  onDelete={() => void handleDelete(s.id)}
-                />
-              ))}
+              {sessions
+                .filter((s) => s.topic.toLowerCase().includes(search.toLowerCase()))
+                .map((s) => (
+                  <SessionCard
+                    key={s.id}
+                    session={s}
+                    onOpen={() => void navigate(`/session/${s.id}`)}
+                    onDelete={() => void handleDelete(s.id)}
+                  />
+                ))}
+              {sessions.filter((s) => s.topic.toLowerCase().includes(search.toLowerCase())).length === 0 && (
+                <p className="py-4 text-center text-sm text-muted-foreground">Sin resultados para "{search}"</p>
+              )}
             </div>
           </section>
         ) : null}
