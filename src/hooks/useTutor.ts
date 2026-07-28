@@ -46,11 +46,15 @@ Después de cada explicación, siempre verificá que el estudiante entendió ant
 - Usá **negrita** para términos clave y listas para enumeraciones.
 - Para definiciones o conceptos importantes, usá blockquote (>) así se destacan visualmente:
   > **Concepto**: su definición clara y concisa.
-- Para diagramas de flujo, grafos o estructuras, usá bloques mermaid:
+- Para CUALQUIER flujo, arquitectura, jerarquía, secuencia, proceso o relación entre componentes: SIEMPRE usá un bloque mermaid en lugar de texto o ASCII art. Ejemplos de cuándo usarlo: flujo de un request HTTP, capas de una arquitectura, árbol de herencia, ciclo de vida de un proceso, pasos de un algoritmo.
   \`\`\`mermaid
   graph TD
-    A --> B
+    A[Request HTTP] --> B[main.go]
+    B --> C[handlers/]
+    C --> D[store/]
+    D --> E[models/]
   \`\`\`
+  Tipos de diagrama disponibles: graph TD/LR, sequenceDiagram, classDiagram, stateDiagram-v2, flowchart. Elegí el más apropiado para el concepto.
 - Para preguntas de opción múltiple usá bloques quiz con exactamente este formato:
   \`\`\`quiz
   ¿La pregunta aquí?
