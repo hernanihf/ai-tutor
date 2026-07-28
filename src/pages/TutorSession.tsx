@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useParams, useNavigate } from 'react-router'
-import { ArrowLeft, Send, Moon, Sun, Bot, User, AlertCircle, Loader2, Download, ChevronDown, Search, X } from 'lucide-react'
+import { ArrowLeft, Send, Moon, Sun, Bot, User, AlertCircle, Loader2, Download, ChevronDown, ChevronUp, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useTheme } from '@/hooks/useTheme'
 import { useTutor, type Message } from '@/hooks/useTutor'
@@ -77,20 +77,22 @@ renderer.code = ({ text, lang }) => {
 }
 marked.use({ renderer })
 
-function highlightSearch(html: string, query: string): string {
+function highlightSearch(html: string, query: string, isActive?: boolean): string {
   if (!query) return html
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return html.replace(new RegExp(`(${escaped})`, 'gi'), '<mark class="search-highlight">$1</mark>')
+  const cls = isActive ? 'search-highlight search-highlight-active' : 'search-highlight'
+  return html.replace(new RegExp(`(${escaped})`, 'gi'), `<mark class="${cls}">$1</mark>`)
 }
 
 function renderMarkdown(content: string): string {
   return marked.parse(content) as string
 }
 
-function MessageBubble({ message, avatarUrl, searchQuery, onAction }: {
+function MessageBubble({ message, avatarUrl, searchQuery, isActiveMatch, onAction }: {
   message: Message
   avatarUrl?: string
   searchQuery?: string
+  isActiveMatch?: boolean
   onAction?: (text: string) => void
 }) {
   const isUser = message.role === 'user'
@@ -100,7 +102,7 @@ function MessageBubble({ message, avatarUrl, searchQuery, onAction }: {
     ? message.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br />')
     : renderMarkdown(message.content)
 
-  if (searchQuery) html = highlightSearch(html, searchQuery)
+  if (searchQuery) html = highlightSearch(html, searchQuery, isActiveMatch)
 
   // Wire up interactive elements after render
   useEffect(() => {
@@ -151,7 +153,14 @@ function MessageBubble({ message, avatarUrl, searchQuery, onAction }: {
   }, [message.content])
 
   return (
-    <div className={cn('flex items-start gap-3', isUser && 'flex-row-reverse')}>
+    <div
+      data-msg-id={message.id}
+      className={cn(
+        'flex items-start gap-3 rounded-xl transition-colors duration-300',
+        isUser && 'flex-row-reverse',
+        isActiveMatch && 'ring-2 ring-primary/40 ring-offset-2 ring-offset-background',
+      )}
+    >
       {isUser && avatarUrl ? (
         <img src={avatarUrl} alt="Avatar" className="size-8 shrink-0 rounded-full object-cover" />
       ) : (
@@ -229,7 +238,30 @@ export default function TutorSession() {
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
+  const [currentMatchIdx, setCurrentMatchIdx] = useState(0)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  const matchingMsgIds = searchQuery
+    ? messages
+        .filter((m) => m.content.toLowerCase().includes(searchQuery.toLowerCase()))
+        .map((m) => m.id)
+    : []
+
+  // Reset match index when query changes
+  useEffect(() => { setCurrentMatchIdx(0) }, [searchQuery])
+
+  // Scroll to active match
+  useEffect(() => {
+    if (!matchingMsgIds.length) return
+    const id = matchingMsgIds[currentMatchIdx]
+    const el = mainRef.current?.querySelector(`[data-msg-id="${id}"]`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [currentMatchIdx, searchQuery]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function goToMatch(delta: 1 | -1) {
+    if (!matchingMsgIds.length) return
+    setCurrentMatchIdx((i) => (i + delta + matchingMsgIds.length) % matchingMsgIds.length)
+  }
 
   useEffect(() => {
     if (showSearch) searchRef.current?.focus()
@@ -326,14 +358,36 @@ export default function TutorSession() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') goToMatch(e.shiftKey ? -1 : 1)
+              if (e.key === 'Escape') { setShowSearch(false); setSearchQuery('') }
+            }}
             placeholder="Buscar en la conversación..."
             className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
           {searchQuery && (
-            <span className="text-xs text-muted-foreground">
-              {messages.filter((m) => m.content.toLowerCase().includes(searchQuery.toLowerCase())).length} resultados
+            <span className="min-w-[3rem] text-center text-xs text-muted-foreground">
+              {matchingMsgIds.length > 0 ? `${currentMatchIdx + 1} / ${matchingMsgIds.length}` : '0 resultados'}
             </span>
           )}
+          <button
+            type="button"
+            onClick={() => goToMatch(-1)}
+            disabled={matchingMsgIds.length === 0}
+            aria-label="Match anterior"
+            className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
+          >
+            <ChevronUp className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => goToMatch(1)}
+            disabled={matchingMsgIds.length === 0}
+            aria-label="Match siguiente"
+            className="flex size-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
+          >
+            <ChevronDown className="size-4" />
+          </button>
           <Button type="button" variant="ghost" size="icon-xs" onClick={() => { setShowSearch(false); setSearchQuery('') }}>
             <X />
           </Button>
@@ -358,17 +412,16 @@ export default function TutorSession() {
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            messages
-              .filter((msg) => !searchQuery || msg.content.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((msg) => (
-                <MessageBubble
-                  key={msg.id}
-                  message={msg}
-                  avatarUrl={avatarUrl}
-                  searchQuery={searchQuery}
-                  onAction={(text) => { setInput(text); void sendMessage(text) }}
-                />
-              ))
+            messages.map((msg) => (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                avatarUrl={avatarUrl}
+                searchQuery={searchQuery}
+                isActiveMatch={searchQuery ? matchingMsgIds[currentMatchIdx] === msg.id : false}
+                onAction={(text) => { setInput(text); void sendMessage(text) }}
+              />
+            ))
           )}
           {isLoading && !isStreaming && <TypingIndicator />}
           {error && (
