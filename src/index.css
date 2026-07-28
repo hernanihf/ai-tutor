@@ -139,12 +139,19 @@
   background: oklch(1 0 0 / 10%);
 }
 
+/* Concept card (blockquote) */
 .prose-message blockquote {
-  border-left: 3px solid var(--border);
   margin: 0.75em 0;
-  padding: 0.25em 0.75em;
-  color: var(--muted-foreground);
-  font-style: italic;
+  padding: 0.6em 0.9em 0.6em 1em;
+  border-left: 3px solid var(--primary);
+  border-radius: 0 8px 8px 0;
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+  font-style: normal;
+  color: var(--foreground);
+}
+
+.prose-message blockquote p {
+  margin: 0;
 }
 
 /* Code block wrapper (from marked renderer) */
@@ -211,6 +218,93 @@
   padding: 0;
   border-radius: 0;
 }
+
+/* Mermaid diagram wrapper */
+.mermaid-wrapper {
+  margin: 0.75em 0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0d1117;
+  border: 1px solid oklch(1 0 0 / 10%);
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.mermaid-wrapper svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Quiz block */
+.quiz-block {
+  margin: 0.75em 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: var(--background);
+}
+
+.quiz-question {
+  padding: 12px 14px;
+  font-weight: 600;
+  font-size: 0.9em;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--primary) 6%, transparent);
+  color: var(--foreground);
+}
+
+.quiz-options {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quiz-option {
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 0.875em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  font-family: inherit;
+}
+
+.quiz-option:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--primary) 8%, transparent);
+  border-color: var(--primary);
+}
+
+.quiz-option:disabled {
+  cursor: default;
+}
+
+.quiz-option.quiz-correct {
+  background: color-mix(in oklch, oklch(0.6 0.2 145) 12%, transparent);
+  border-color: oklch(0.6 0.2 145);
+  color: oklch(0.6 0.2 145);
+  font-weight: 600;
+}
+
+.quiz-option.quiz-wrong {
+  background: color-mix(in oklch, var(--destructive) 10%, transparent);
+  border-color: var(--destructive);
+  color: var(--destructive);
+}
+
+.quiz-feedback {
+  padding: 8px 14px;
+  font-size: 0.82em;
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+}
+
+.quiz-feedback-correct { color: oklch(0.6 0.2 145); }
+.quiz-feedback-wrong { color: var(--destructive); }
 
 /* Search highlight */
 .search-highlight {

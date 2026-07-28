@@ -11,6 +11,9 @@ import { cn } from '@/lib/utils'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
+import mermaid from 'mermaid'
+
+mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' })
 
 function ThemeToggle() {
   const { isDark, toggleTheme } = useTheme()
@@ -30,10 +33,38 @@ marked.setOptions({
 
 const renderer = new marked.Renderer()
 renderer.code = ({ text, lang }) => {
+  // Mermaid diagram
+  if (lang === 'mermaid') {
+    const id = `mermaid-${Math.random().toString(36).slice(2)}`
+    return `<div class="mermaid-wrapper"><div class="mermaid" id="${id}">${text}</div></div>`
+  }
+
+  // Interactive quiz
+  if (lang === 'quiz') {
+    const lines = text.trim().split('\n')
+    const question = lines[0]
+    const correctLine = lines.find((l) => l.startsWith('correct:'))
+    const correct = correctLine ? correctLine.replace('correct:', '').trim() : ''
+    const options = lines.slice(1).filter((l) => l.match(/^[A-D]\)/))
+    const id = `quiz-${Math.random().toString(36).slice(2)}`
+    const optionsHtml = options
+      .map((opt) => {
+        const letter = opt[0]
+        const text = opt.slice(2).trim()
+        return `<button class="quiz-option" data-quiz="${id}" data-letter="${letter}" data-correct="${correct}">${letter}) ${text}</button>`
+      })
+      .join('')
+    return `<div class="quiz-block" id="${id}">
+      <div class="quiz-question">${question}</div>
+      <div class="quiz-options">${optionsHtml}</div>
+      <div class="quiz-feedback" id="${id}-feedback"></div>
+    </div>`
+  }
+
+  // Regular code block
   const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext'
   const highlighted = hljs.highlight(text, { language }).value
-  const id = `code-${Math.random().toString(36).slice(2)}`
-  return `<div class="code-block-wrapper" data-id="${id}">
+  return `<div class="code-block-wrapper">
     <div class="code-block-header">
       <span class="code-lang">${language}</span>
       <button class="copy-code-btn" data-code="${encodeURIComponent(text)}" aria-label="Copiar código">
@@ -71,12 +102,13 @@ function MessageBubble({ message, avatarUrl, searchQuery, onAction }: {
 
   if (searchQuery) html = highlightSearch(html, searchQuery)
 
-  // Wire up copy buttons inside code blocks
+  // Wire up interactive elements after render
   useEffect(() => {
     const el = bubbleRef.current
     if (!el) return
-    const buttons = el.querySelectorAll<HTMLButtonElement>('.copy-code-btn')
-    buttons.forEach((btn) => {
+
+    // Copy buttons
+    el.querySelectorAll<HTMLButtonElement>('.copy-code-btn').forEach((btn) => {
       btn.onclick = () => {
         const code = decodeURIComponent(btn.dataset.code ?? '')
         void navigator.clipboard.writeText(code).then(() => {
@@ -87,6 +119,35 @@ function MessageBubble({ message, avatarUrl, searchQuery, onAction }: {
         })
       }
     })
+
+    // Quiz options
+    el.querySelectorAll<HTMLButtonElement>('.quiz-option').forEach((btn) => {
+      btn.onclick = () => {
+        const quizId = btn.dataset.quiz ?? ''
+        const letter = btn.dataset.letter ?? ''
+        const correct = btn.dataset.correct ?? ''
+        const quizEl = document.getElementById(quizId)
+        if (!quizEl || quizEl.dataset.answered) return
+        quizEl.dataset.answered = '1'
+        const isCorrect = letter === correct
+        quizEl.querySelectorAll<HTMLButtonElement>('.quiz-option').forEach((b) => {
+          b.disabled = true
+          if (b.dataset.letter === correct) b.classList.add('quiz-correct')
+          else if (b.dataset.letter === letter && !isCorrect) b.classList.add('quiz-wrong')
+        })
+        const feedback = document.getElementById(`${quizId}-feedback`)
+        if (feedback) {
+          feedback.textContent = isCorrect ? '✓ ¡Correcto!' : `✗ Incorrecto. La respuesta correcta era ${correct}.`
+          feedback.className = `quiz-feedback ${isCorrect ? 'quiz-feedback-correct' : 'quiz-feedback-wrong'}`
+        }
+      }
+    })
+
+    // Mermaid diagrams
+    const mermaidEls = el.querySelectorAll<HTMLElement>('.mermaid')
+    if (mermaidEls.length > 0) {
+      void mermaid.run({ nodes: Array.from(mermaidEls) })
+    }
   }, [message.content])
 
   return (
