@@ -113,12 +113,36 @@ function MessageBubble({ message, avatarUrl, searchQuery, isActiveMatch, onActio
     el.querySelectorAll<HTMLButtonElement>('.copy-code-btn').forEach((btn) => {
       btn.onclick = () => {
         const code = decodeURIComponent(btn.dataset.code ?? '')
-        void navigator.clipboard.writeText(code).then(() => {
-          btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ¡Copiado!`
-          setTimeout(() => {
-            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> Copiar`
-          }, 2000)
-        })
+        const svgCheck = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
+        const svgCopy = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
+        const markDone = () => {
+          btn.innerHTML = `${svgCheck} ¡Copiado!`
+          setTimeout(() => { btn.innerHTML = `${svgCopy} Copiar` }, 2000)
+        }
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(code).then(markDone).catch(() => {
+            // fallback for focus/permission issues
+            const ta = document.createElement('textarea')
+            ta.value = code
+            ta.style.cssText = 'position:fixed;opacity:0'
+            document.body.appendChild(ta)
+            ta.focus()
+            ta.select()
+            document.execCommand('copy')
+            document.body.removeChild(ta)
+            markDone()
+          })
+        } else {
+          const ta = document.createElement('textarea')
+          ta.value = code
+          ta.style.cssText = 'position:fixed;opacity:0'
+          document.body.appendChild(ta)
+          ta.focus()
+          ta.select()
+          document.execCommand('copy')
+          document.body.removeChild(ta)
+          markDone()
+        }
       }
     })
 
@@ -247,8 +271,22 @@ export default function TutorSession() {
         .map((m) => m.id)
     : []
 
-  // Reset match index when query changes
-  useEffect(() => { setCurrentMatchIdx(0) }, [searchQuery])
+  // When query changes, jump to the match closest to current scroll position
+  useEffect(() => {
+    if (!searchQuery || matchingMsgIds.length === 0) { setCurrentMatchIdx(0); return }
+    const main = mainRef.current
+    if (!main) { setCurrentMatchIdx(0); return }
+    const viewportCenter = main.scrollTop + main.clientHeight / 2
+    let closestIdx = 0
+    let closestDist = Infinity
+    matchingMsgIds.forEach((id, idx) => {
+      const el = main.querySelector(`[data-msg-id="${id}"]`) as HTMLElement | null
+      if (!el) return
+      const dist = Math.abs(el.offsetTop + el.offsetHeight / 2 - viewportCenter)
+      if (dist < closestDist) { closestDist = dist; closestIdx = idx }
+    })
+    setCurrentMatchIdx(closestIdx)
+  }, [searchQuery]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll to active match
   useEffect(() => {
