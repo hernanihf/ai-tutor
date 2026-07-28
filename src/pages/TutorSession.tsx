@@ -8,7 +8,9 @@ import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { exportConversation } from '@/lib/exportPDF'
 import { cn } from '@/lib/utils'
-import { useEffect as useEffectOnce, useState as useStateOnce } from 'react'
+import { marked } from 'marked'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github-dark.css'
 
 function ThemeToggle() {
   const { isDark, toggleTheme } = useTheme()
@@ -20,19 +22,72 @@ function ThemeToggle() {
   )
 }
 
-function highlight(text: string, query: string): string {
-  if (!query) return text
+// Configure marked with syntax highlighting
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+})
+
+const renderer = new marked.Renderer()
+renderer.code = ({ text, lang }) => {
+  const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext'
+  const highlighted = hljs.highlight(text, { language }).value
+  const id = `code-${Math.random().toString(36).slice(2)}`
+  return `<div class="code-block-wrapper" data-id="${id}">
+    <div class="code-block-header">
+      <span class="code-lang">${language}</span>
+      <button class="copy-code-btn" data-code="${encodeURIComponent(text)}" aria-label="Copiar código">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+        Copiar
+      </button>
+    </div>
+    <pre><code class="hljs language-${language}">${highlighted}</code></pre>
+  </div>`
+}
+marked.use({ renderer })
+
+function highlightSearch(html: string, query: string): string {
+  if (!query) return html
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark style="background:#fde68a;color:#0f172a;border-radius:2px;padding:0 1px">$1</mark>')
+  return html.replace(new RegExp(`(${escaped})`, 'gi'), '<mark class="search-highlight">$1</mark>')
 }
 
-function MessageBubble({ message, avatarUrl, searchQuery }: { message: Message; avatarUrl?: string; searchQuery?: string }) {
+function renderMarkdown(content: string): string {
+  return marked.parse(content) as string
+}
+
+function MessageBubble({ message, avatarUrl, searchQuery, onAction }: {
+  message: Message
+  avatarUrl?: string
+  searchQuery?: string
+  onAction?: (text: string) => void
+}) {
   const isUser = message.role === 'user'
-  const safe = message.content
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n/g, '<br />')
-  const html = searchQuery ? highlight(safe, searchQuery) : safe
+  const bubbleRef = useRef<HTMLDivElement>(null)
+
+  let html = isUser
+    ? message.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br />')
+    : renderMarkdown(message.content)
+
+  if (searchQuery) html = highlightSearch(html, searchQuery)
+
+  // Wire up copy buttons inside code blocks
+  useEffect(() => {
+    const el = bubbleRef.current
+    if (!el) return
+    const buttons = el.querySelectorAll<HTMLButtonElement>('.copy-code-btn')
+    buttons.forEach((btn) => {
+      btn.onclick = () => {
+        const code = decodeURIComponent(btn.dataset.code ?? '')
+        void navigator.clipboard.writeText(code).then(() => {
+          btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ¡Copiado!`
+          setTimeout(() => {
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> Copiar`
+          }, 2000)
+        })
+      }
+    })
+  }, [message.content])
 
   return (
     <div className={cn('flex items-start gap-3', isUser && 'flex-row-reverse')}>
@@ -46,14 +101,31 @@ function MessageBubble({ message, avatarUrl, searchQuery }: { message: Message; 
           {isUser ? <User className="size-4" /> : <Bot className="size-4" />}
         </div>
       )}
-      <div
-        className={cn(
-          'max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed',
-          isUser ? 'rounded-tr-sm bg-primary text-primary-foreground' : 'rounded-tl-sm bg-muted text-foreground',
-          message.content === '' && 'min-w-[60px]',
+      <div className="flex max-w-[75%] flex-col gap-2">
+        <div
+          ref={bubbleRef}
+          className={cn(
+            'prose-message rounded-2xl px-4 py-3 text-sm',
+            isUser ? 'rounded-tr-sm bg-primary text-primary-foreground' : 'rounded-tl-sm bg-muted text-foreground',
+            message.content === '' && 'min-w-[60px]',
+          )}
+          dangerouslySetInnerHTML={{ __html: html || '&nbsp;' }} // eslint-disable-line react/no-danger
+        />
+        {!isUser && onAction && message.content.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pl-1">
+            {['Dame un ejemplo', 'Explicá de otra manera', 'Dame un ejercicio', 'Profundizar'].map((action) => (
+              <button
+                key={action}
+                type="button"
+                onClick={() => onAction(action)}
+                className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+              >
+                {action}
+              </button>
+            ))}
+          </div>
         )}
-        dangerouslySetInnerHTML={{ __html: html || '&nbsp;' }} // eslint-disable-line react/no-danger
-      />
+      </div>
     </div>
   )
 }
@@ -81,8 +153,8 @@ export default function TutorSession() {
   const { user } = useAuth()
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined
 
-  const [topic, setTopic] = useStateOnce<string>('')
-  useEffectOnce(() => {
+  const [topic, setTopic] = useState<string>('')
+  useEffect(() => {
     async function loadTopic() {
       const { data } = await supabase.from('sessions').select('topic').eq('id', id).single()
       if (data) setTopic((data as { topic: string }).topic)
@@ -227,7 +299,15 @@ export default function TutorSession() {
           ) : (
             messages
               .filter((msg) => !searchQuery || msg.content.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((msg) => <MessageBubble key={msg.id} message={msg} avatarUrl={avatarUrl} searchQuery={searchQuery} />)
+              .map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  avatarUrl={avatarUrl}
+                  searchQuery={searchQuery}
+                  onAction={(text) => { setInput(text); void sendMessage(text) }}
+                />
+              ))
           )}
           {isLoading && !isStreaming && <TypingIndicator />}
           {error && (
