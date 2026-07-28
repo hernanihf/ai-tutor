@@ -12,6 +12,7 @@ import { marked } from 'marked'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
 import mermaid from 'mermaid'
+import { searchEmojis, type EmojiEntry } from '@/lib/emojis'
 
 mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' })
 
@@ -323,6 +324,40 @@ export default function TutorSession() {
     return () => el.removeEventListener('scroll', onScroll)
   }, [topic])
 
+  // Emoji picker state
+  const [emojiMatches, setEmojiMatches] = useState<EmojiEntry[]>([])
+  const [emojiActiveIdx, setEmojiActiveIdx] = useState(0)
+  const [emojiTriggerStart, setEmojiTriggerStart] = useState(-1)
+
+  function detectEmojiQuery(value: string, cursor: number) {
+    const text = value.slice(0, cursor)
+    const match = text.match(/:([a-zA-Z0-9_+-]*)$/)
+    if (!match) { setEmojiMatches([]); setEmojiTriggerStart(-1); return }
+    const query = match[1]
+    const start = cursor - match[0].length
+    setEmojiTriggerStart(start)
+    setEmojiActiveIdx(0)
+    setEmojiMatches(searchEmojis(query))
+  }
+
+  function insertEmoji(entry: EmojiEntry) {
+    const ta = textareaRef.current
+    if (!ta) return
+    const cursor = ta.selectionStart ?? input.length
+    const before = input.slice(0, emojiTriggerStart)
+    const after = input.slice(cursor)
+    const newValue = before + entry.emoji + ' ' + after
+    setInput(newValue)
+    setEmojiMatches([])
+    setEmojiTriggerStart(-1)
+    // restore focus + cursor after emoji
+    requestAnimationFrame(() => {
+      ta.focus()
+      const pos = before.length + entry.emoji.length + 1
+      ta.setSelectionRange(pos, pos)
+    })
+  }
+
   function resizeTextarea() {
     const el = textareaRef.current
     if (!el) return
@@ -331,6 +366,12 @@ export default function TutorSession() {
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (emojiMatches.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setEmojiActiveIdx((i) => (i + 1) % emojiMatches.length); return }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setEmojiActiveIdx((i) => (i - 1 + emojiMatches.length) % emojiMatches.length); return }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertEmoji(emojiMatches[emojiActiveIdx]); return }
+      if (e.key === 'Escape') { setEmojiMatches([]); return }
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submit() }
   }
 
@@ -338,6 +379,7 @@ export default function TutorSession() {
     const text = input.trim()
     if (!text || isLoading) return
     setInput('')
+    setEmojiMatches([])
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     await sendMessage(text)
   }
@@ -473,13 +515,38 @@ export default function TutorSession() {
       </div>
 
       <footer className="shrink-0 border-t border-border bg-background/80 px-4 py-4 backdrop-blur-sm">
+        {emojiMatches.length > 0 && (
+          <div className="mx-auto mb-2 max-w-2xl lg:max-w-3xl">
+            <div className="flex flex-wrap gap-1 rounded-xl border border-border bg-background p-1.5 shadow-lg">
+              {emojiMatches.map((entry, idx) => (
+                <button
+                  key={entry.name}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); insertEmoji(entry) }}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm transition-colors',
+                    idx === emojiActiveIdx
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-foreground hover:bg-muted',
+                  )}
+                >
+                  <span className="text-base leading-none">{entry.emoji}</span>
+                  <span className="text-xs text-current/70">:{entry.name}:</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <form onSubmit={(e: FormEvent) => { e.preventDefault(); void submit() }}
           className="mx-auto flex max-w-2xl lg:max-w-3xl items-end gap-2">
           <textarea
             ref={textareaRef} rows={1} value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value)
+              detectEmojiQuery(e.target.value, e.target.selectionStart ?? e.target.value.length)
+            }}
             onInput={resizeTextarea} onKeyDown={handleKeyDown}
-            placeholder="Escribe tu pregunta..." disabled={isLoading || !initialized}
+            placeholder="Escribe tu pregunta... (: para emojis)" disabled={isLoading || !initialized}
             className="flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground shadow-xs transition-colors focus:border-ring focus:outline-none focus:ring-[3px] focus:ring-ring/50 disabled:opacity-50"
           />
           <Button type="submit" size="icon" disabled={!input.trim() || isLoading || !initialized}
