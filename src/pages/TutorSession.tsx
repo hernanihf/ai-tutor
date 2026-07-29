@@ -14,7 +14,12 @@ import 'highlight.js/styles/github-dark.css'
 import mermaid from 'mermaid'
 import { searchEmojis, type EmojiEntry } from '@/lib/emojis'
 
-mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose' })
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  securityLevel: 'loose',
+  suppressErrorRendering: true,
+})
 
 function ThemeToggle() {
   const { isDark, toggleTheme } = useTheme()
@@ -170,10 +175,22 @@ function MessageBubble({ message, avatarUrl, searchQuery, isActiveMatch, onActio
       }
     })
 
-    // Mermaid diagrams
+    // Mermaid diagrams — render with error fallback
     const mermaidEls = el.querySelectorAll<HTMLElement>('.mermaid')
     if (mermaidEls.length > 0) {
-      void mermaid.run({ nodes: Array.from(mermaidEls) })
+      void mermaid.run({ nodes: Array.from(mermaidEls) }).catch(() => {
+        mermaidEls.forEach((node) => {
+          if (!node.dataset.processed) {
+            const rawCode = node.textContent ?? ''
+            node.closest('.mermaid-wrapper')?.replaceWith(
+              Object.assign(document.createElement('div'), {
+                className: 'code-block-wrapper',
+                innerHTML: `<div class="code-block-header"><span class="code-lang">mermaid</span></div><pre><code class="hljs">${rawCode.replace(/</g, '&lt;')}</code></pre>`,
+              })
+            )
+          }
+        })
+      })
     }
   }, [message.content])
 
