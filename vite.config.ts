@@ -16,6 +16,8 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'icons.svg'],
       workbox: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
+        skipWaiting: true,
+        clientsClaim: true,
       },
       manifest: {
         name: 'AI-Tutor',
