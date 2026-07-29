@@ -546,7 +546,7 @@ export default function TutorSession() {
               detectEmojiQuery(e.target.value, e.target.selectionStart ?? e.target.value.length)
             }}
             onInput={resizeTextarea} onKeyDown={handleKeyDown}
-            placeholder="Escribe tu pregunta... (: para emojis)" disabled={isLoading || !initialized}
+            placeholder="Escribe tu pregunta..." disabled={isLoading || !initialized}
             className="flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground shadow-xs transition-colors focus:border-ring focus:outline-none focus:ring-[3px] focus:ring-ring/50 disabled:opacity-50"
           />
           <Button type="submit" size="icon" disabled={!input.trim() || isLoading || !initialized}
