@@ -442,6 +442,28 @@ export default function TutorSession() {
     })
   }
 
+  // Undo/redo stack — up to 200 snapshots
+  type Snapshot = { value: string; start: number; end: number }
+  const undoStack = useRef<Snapshot[]>([{ value: '', start: 0, end: 0 }])
+  const undoIdx = useRef(0)
+
+  function pushSnapshot(value: string, start: number, end: number) {
+    const stack = undoStack.current
+    // Truncate redo branch
+    stack.splice(undoIdx.current + 1)
+    stack.push({ value, start, end })
+    if (stack.length > 200) stack.shift()
+    else undoIdx.current++
+  }
+
+  function applySnapshot(snap: Snapshot) {
+    setInput(snap.value)
+    requestAnimationFrame(() => {
+      textareaRef.current?.setSelectionRange(snap.start, snap.end)
+      resizeTextarea()
+    })
+  }
+
   function resizeTextarea() {
     const el = textareaRef.current
     if (!el) return
@@ -456,6 +478,17 @@ export default function TutorSession() {
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertEmoji(emojiMatches[emojiActiveIdx]); return }
       if (e.key === 'Escape') { setEmojiMatches([]); return }
     }
+    const mod = e.ctrlKey || e.metaKey
+    if (mod && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault()
+      if (undoIdx.current > 0) { undoIdx.current--; applySnapshot(undoStack.current[undoIdx.current]) }
+      return
+    }
+    if (mod && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      e.preventDefault()
+      if (undoIdx.current < undoStack.current.length - 1) { undoIdx.current++; applySnapshot(undoStack.current[undoIdx.current]) }
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submit() }
   }
 
@@ -464,6 +497,9 @@ export default function TutorSession() {
     if (!text || isLoading) return
     setInput('')
     setEmojiMatches([])
+    // Reset undo stack after send
+    undoStack.current = [{ value: '', start: 0, end: 0 }]
+    undoIdx.current = 0
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     await sendMessage(text)
   }
@@ -639,8 +675,12 @@ export default function TutorSession() {
           <textarea
             ref={textareaRef} rows={1} value={input}
             onChange={(e) => {
-              setInput(e.target.value)
-              detectEmojiQuery(e.target.value, e.target.selectionStart ?? e.target.value.length)
+              const val = e.target.value
+              const start = e.target.selectionStart ?? val.length
+              const end = e.target.selectionEnd ?? val.length
+              setInput(val)
+              pushSnapshot(val, start, end)
+              detectEmojiQuery(val, start)
             }}
             onInput={resizeTextarea} onKeyDown={handleKeyDown}
             placeholder="Escribe tu pregunta..." disabled={isLoading || !initialized}
