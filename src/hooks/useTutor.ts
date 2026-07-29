@@ -6,6 +6,7 @@ export interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
+  created_at?: string
 }
 
 function buildSystemPrompt(topic: string) {
@@ -78,7 +79,7 @@ export function useTutor(sessionId: string, topic: string) {
     async function loadMessages() {
       const { data } = await supabase
         .from('messages')
-        .select('id, role, content')
+        .select('id, role, content, created_at')
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true })
 

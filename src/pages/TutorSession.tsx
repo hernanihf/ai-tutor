@@ -90,6 +90,35 @@ function highlightSearch(html: string, query: string, isActive?: boolean): strin
   return html.replace(new RegExp(`(${escaped})`, 'gi'), `<mark class="${cls}">$1</mark>`)
 }
 
+function formatDateSeparator(iso: string): string {
+  const date = new Date(iso)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+  if (sameDay(date, today)) return 'Hoy'
+  if (sameDay(date, yesterday)) return 'Ayer'
+  return date.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function dayKey(iso: string): string {
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+}
+
+function DateSeparator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 py-1">
+      <div className="h-px flex-1 bg-border" />
+      <span className="rounded-full border border-border bg-muted px-3 py-0.5 text-xs font-medium capitalize text-muted-foreground">
+        {label}
+      </span>
+      <div className="h-px flex-1 bg-border" />
+    </div>
+  )
+}
+
 function renderMarkdown(content: string): string {
   return marked.parse(content) as string
 }
@@ -547,16 +576,29 @@ export default function TutorSession() {
               <Loader2 className="size-6 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            messages.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                avatarUrl={avatarUrl}
-                searchQuery={searchQuery}
-                isActiveMatch={searchQuery ? matchingMsgIds[currentMatchIdx] === msg.id : false}
-                onAction={(text) => { setInput(text); void sendMessage(text) }}
-              />
-            ))
+            messages.flatMap((msg, idx) => {
+              const elements = []
+              const prevMsg = messages[idx - 1]
+              const showDate = msg.created_at && (
+                !prevMsg?.created_at || dayKey(msg.created_at) !== dayKey(prevMsg.created_at)
+              )
+              if (showDate && msg.created_at) {
+                elements.push(
+                  <DateSeparator key={`date-${msg.id}`} label={formatDateSeparator(msg.created_at)} />
+                )
+              }
+              elements.push(
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  avatarUrl={avatarUrl}
+                  searchQuery={searchQuery}
+                  isActiveMatch={searchQuery ? matchingMsgIds[currentMatchIdx] === msg.id : false}
+                  onAction={(text) => { setInput(text); void sendMessage(text) }}
+                />
+              )
+              return elements
+            })
           )}
           {isLoading && !isStreaming && <TypingIndicator />}
           {error && (
