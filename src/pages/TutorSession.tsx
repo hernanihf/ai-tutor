@@ -94,6 +94,24 @@ function renderMarkdown(content: string): string {
   return marked.parse(content) as string
 }
 
+// Detect "Opción A / B / C" or standalone "A) B) C)" option patterns
+function detectOptions(content: string): string[] {
+  // "Opción A", "Opcion B", "**Opción A**", etc.
+  const namedMatches = new Set<string>()
+  const namedRe = /opci[oó]n\s+([A-D])/gi
+  let m
+  while ((m = namedRe.exec(content)) !== null) namedMatches.add(m[1].toUpperCase())
+  if (namedMatches.size >= 2) return [...namedMatches].sort().map((l) => `Opción ${l}`)
+
+  // "A) text" or "**A)**" at start of line
+  const letterMatches = new Set<string>()
+  const letterRe = /^\s*\*{0,2}([A-D])\)\*{0,2}/gm
+  while ((m = letterRe.exec(content)) !== null) letterMatches.add(m[1].toUpperCase())
+  if (letterMatches.size >= 2) return [...letterMatches].sort().map((l) => `${l}`)
+
+  return []
+}
+
 function MessageBubble({ message, avatarUrl, searchQuery, isActiveMatch, onAction }: {
   message: Message
   avatarUrl?: string
@@ -223,20 +241,40 @@ function MessageBubble({ message, avatarUrl, searchQuery, isActiveMatch, onActio
           )}
           dangerouslySetInnerHTML={{ __html: html || '&nbsp;' }} // eslint-disable-line react/no-danger
         />
-        {!isUser && onAction && message.content.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pl-1">
-            {['Dame un ejemplo', 'Explicá de otra manera', 'Dame un ejercicio', 'Profundizar'].map((action) => (
-              <button
-                key={action}
-                type="button"
-                onClick={() => onAction(action)}
-                className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
-              >
-                {action}
-              </button>
-            ))}
-          </div>
-        )}
+        {!isUser && onAction && message.content.length > 0 && (() => {
+          const options = detectOptions(message.content)
+          if (options.length >= 2) {
+            return (
+              <div className="flex flex-wrap gap-1.5 pl-1">
+                <span className="w-full text-xs text-muted-foreground pl-0.5 mb-0.5">Elegir:</span>
+                {options.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => onAction(opt)}
+                    className="rounded-full border border-primary/40 bg-primary/5 px-3 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )
+          }
+          return (
+            <div className="flex flex-wrap gap-1.5 pl-1">
+              {['Dame un ejemplo', 'Explicá de otra manera', 'Dame un ejercicio', 'Profundizar'].map((action) => (
+                <button
+                  key={action}
+                  type="button"
+                  onClick={() => onAction(action)}
+                  className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+                >
+                  {action}
+                </button>
+              ))}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
