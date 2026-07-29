@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { streamMessage } from '@/lib/aiClient'
+import { streamMessage, getProvider, type Provider } from '@/lib/aiClient'
 import { supabase } from '@/lib/supabase'
 
 export interface Message {
@@ -73,6 +73,7 @@ export function useTutor(sessionId: string, topic: string) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [initialized, setInitialized] = useState(false)
+  const [activeProvider, setActiveProvider] = useState<Provider>(getProvider())
 
   // Load existing messages from Supabase on mount
   useEffect(() => {
@@ -137,6 +138,7 @@ export function useTutor(sessionId: string, topic: string) {
           systemPrompt: buildSystemPrompt(topic),
           history: messages.map((m) => ({ role: m.role, content: m.content })),
           userMessage: userMessage.content,
+          onProvider: (p) => setActiveProvider(p),
           onChunk: (text) => {
             fullContent += text
             setMessages((prev) =>
@@ -163,5 +165,5 @@ export function useTutor(sessionId: string, topic: string) {
     [messages, isLoading, topic, sessionId],
   )
 
-  return { messages, isLoading, error, sendMessage, initialized }
+  return { messages, isLoading, error, sendMessage, initialized, activeProvider }
 }

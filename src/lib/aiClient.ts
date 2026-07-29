@@ -16,6 +16,7 @@ interface StreamOptions {
   history: { role: 'user' | 'assistant'; content: string }[]
   userMessage: string
   onChunk: (text: string) => void
+  onProvider?: (provider: Provider) => void
 }
 
 async function streamGroq({ systemPrompt, history, userMessage, onChunk }: StreamOptions) {
@@ -103,6 +104,7 @@ export async function streamMessage(opts: StreamOptions) {
 
   for (const provider of chain) {
     try {
+      opts.onProvider?.(provider)
       await providers[provider](opts)
       return
     } catch (err) {

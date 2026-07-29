@@ -342,7 +342,14 @@ export default function TutorSession() {
     void loadTopic()
   }, [id])
 
-  const { messages, isLoading, error, sendMessage, initialized } = useTutor(id, topic)
+  const { messages, isLoading, error, sendMessage, initialized, activeProvider } = useTutor(id, topic)
+
+  const providerLabel: Record<string, string> = { groq: 'Groq', gemini: 'Gemini', anthropic: 'Claude' }
+  const providerColor: Record<string, string> = {
+    groq: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+    gemini: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    anthropic: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  }
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -524,7 +531,12 @@ export default function TutorSession() {
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">{topic}</p>
-            <p className="text-xs text-muted-foreground">{isStreaming ? 'Escribiendo…' : 'Tutor IA'}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs text-muted-foreground">{isStreaming ? 'Escribiendo…' : 'Tutor IA'}</p>
+              <span className={`rounded-full border px-1.5 py-px text-[10px] font-semibold leading-none ${providerColor[activeProvider]}`}>
+                {providerLabel[activeProvider]}
+              </span>
+            </div>
           </div>
         </div>
         <Button
