@@ -92,6 +92,7 @@ export function useTutor(sessionId: string, topic: string) {
           id: crypto.randomUUID(),
           role: 'assistant',
           content: `¡Hola! Soy tu tutor de **${topic}**. ¿Por dónde te gustaría empezar? Puedo explicarte los conceptos básicos, responder preguntas específicas o darte un desafío para practicar.`,
+          created_at: new Date().toISOString(),
         }
         await supabase.from('messages').insert({
           id: welcome.id,
@@ -115,6 +116,7 @@ export function useTutor(sessionId: string, topic: string) {
         id: crypto.randomUUID(),
         role: 'user',
         content: userText,
+        created_at: new Date().toISOString(),
       }
 
       // Save user message to Supabase
@@ -130,7 +132,7 @@ export function useTutor(sessionId: string, topic: string) {
       setError(null)
 
       const assistantId = crypto.randomUUID()
-      setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }])
+      setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '', created_at: new Date().toISOString() }])
 
       try {
         let fullContent = ''
