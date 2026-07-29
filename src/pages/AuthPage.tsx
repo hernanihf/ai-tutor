@@ -32,7 +32,7 @@ function GoogleIcon() {
 }
 
 export default function AuthPage() {
-  const { signInWithGoogle } = useAuth()
+  const { signInWithGoogle, blockedEmail } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -73,7 +73,12 @@ export default function AuthPage() {
             Continuar con Google
           </Button>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {blockedEmail && (
+            <p className="text-sm text-destructive">
+              Servicio momentariamente no disponible, contactate con el administrador.
+            </p>
+          )}
+          {error && !blockedEmail && <p className="text-sm text-destructive">{error}</p>}
         </div>
       </main>
     </div>
