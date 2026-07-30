@@ -344,11 +344,13 @@ export default function TutorSession() {
 
   const { messages, isLoading, error, sendMessage, initialized, activeProvider } = useTutor(id, topic)
 
-  const providerLabel: Record<string, string> = { groq: 'Groq', gemini: 'Gemini', anthropic: 'Claude' }
+  const providerLabel: Record<string, string> = { groq: 'Groq', gemini: 'Gemini', anthropic: 'Claude', openai: 'ChatGPT', deepseek: 'DeepSeek' }
   const providerColor: Record<string, string> = {
     groq: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
     gemini: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
     anthropic: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+    openai: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    deepseek: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
   }
   const [input, setInput] = useState('')
   const [showScrollBtn, setShowScrollBtn] = useState(false)

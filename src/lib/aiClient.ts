@@ -1,13 +1,16 @@
 import { GoogleGenAI } from '@google/genai'
 import Anthropic from '@anthropic-ai/sdk'
 import Groq from 'groq-sdk'
+import OpenAI from 'openai'
 
-export type Provider = 'groq' | 'gemini' | 'anthropic'
+export type Provider = 'groq' | 'gemini' | 'anthropic' | 'openai' | 'deepseek'
 
 export function getProvider(): Provider {
   const p = import.meta.env.VITE_AI_PROVIDER as string | undefined
   if (p === 'anthropic') return 'anthropic'
   if (p === 'gemini') return 'gemini'
+  if (p === 'openai') return 'openai'
+  if (p === 'deepseek') return 'deepseek'
   return 'groq'
 }
 
@@ -81,16 +84,58 @@ async function streamAnthropic({ systemPrompt, history, userMessage, onChunk }: 
   }
 }
 
+async function streamOpenAI({ systemPrompt, history, userMessage, onChunk }: StreamOptions) {
+  const apiKey = import.meta.env.VITE_OPENAI_API_KEY as string | undefined
+  if (!apiKey) throw new Error('Falta VITE_OPENAI_API_KEY')
+
+  const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
+  const stream = await client.chat.completions.create({
+    model: 'gpt-4o-mini',
+    stream: true,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user', content: userMessage },
+    ],
+  })
+  for await (const chunk of stream) {
+    onChunk(chunk.choices[0]?.delta?.content ?? '')
+  }
+}
+
+async function streamDeepSeek({ systemPrompt, history, userMessage, onChunk }: StreamOptions) {
+  const apiKey = import.meta.env.VITE_DEEPSEEK_API_KEY as string | undefined
+  if (!apiKey) throw new Error('Falta VITE_DEEPSEEK_API_KEY')
+
+  const client = new OpenAI({ apiKey, baseURL: 'https://api.deepseek.com', dangerouslyAllowBrowser: true })
+  const stream = await client.chat.completions.create({
+    model: 'deepseek-chat',
+    stream: true,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+      { role: 'user', content: userMessage },
+    ],
+  })
+  for await (const chunk of stream) {
+    onChunk(chunk.choices[0]?.delta?.content ?? '')
+  }
+}
+
 const providers: Record<Provider, (opts: StreamOptions) => Promise<void>> = {
   groq: streamGroq,
   gemini: streamGemini,
   anthropic: streamAnthropic,
+  openai: streamOpenAI,
+  deepseek: streamDeepSeek,
 }
 
 const fallbackOrder: Record<Provider, Provider[]> = {
-  groq: ['gemini', 'anthropic'],
-  gemini: ['groq', 'anthropic'],
-  anthropic: ['groq', 'gemini'],
+  groq: ['deepseek', 'gemini', 'anthropic', 'openai'],
+  gemini: ['groq', 'deepseek', 'anthropic', 'openai'],
+  anthropic: ['groq', 'deepseek', 'gemini', 'openai'],
+  openai: ['groq', 'deepseek', 'gemini', 'anthropic'],
+  deepseek: ['groq', 'gemini', 'anthropic', 'openai'],
 }
 
 function isQuotaError(err: unknown) {
@@ -100,7 +145,9 @@ function isQuotaError(err: unknown) {
 
 export async function streamMessage(opts: StreamOptions) {
   const primary = getProvider()
-  const chain = [primary, ...fallbackOrder[primary]]
+  const chain = [primary, ...fallbackOrder[primary].filter(
+    (p) => import.meta.env[`VITE_${p.toUpperCase()}_API_KEY`]
+  )]
 
   for (const provider of chain) {
     try {
