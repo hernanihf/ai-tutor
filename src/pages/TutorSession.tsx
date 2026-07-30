@@ -662,14 +662,14 @@ export default function TutorSession() {
       <footer className="shrink-0 border-t border-border bg-background/80 px-4 py-4 backdrop-blur-sm">
         {emojiMatches.length > 0 && (
           <div className="mx-auto mb-2 max-w-2xl lg:max-w-3xl">
-            <div className="flex flex-wrap gap-1 rounded-xl border border-border bg-background p-1.5 shadow-lg">
+            <div className="flex flex-col rounded-xl border border-border bg-background py-1 shadow-lg">
               {emojiMatches.map((entry, idx) => (
                 <button
                   key={entry.name}
                   type="button"
                   onMouseDown={(e) => { e.preventDefault(); insertEmoji(entry) }}
                   className={cn(
-                    'flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm transition-colors',
+                    'flex items-center gap-2 px-3 py-1.5 text-sm transition-colors',
                     idx === emojiActiveIdx
                       ? 'bg-primary text-primary-foreground'
                       : 'text-foreground hover:bg-muted',
